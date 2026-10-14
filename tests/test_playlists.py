@@ -84,3 +84,29 @@ def test_empty_playlist_returns_empty_list(app):
 
         songs = get_playlist_songs(playlist.id)
         assert songs == []
+
+
+def test_single_song_playlist_endpoint_returns_its_song(app, seed_playlist):
+    """A playlist's only song must appear in the HTTP response (issue #5)."""
+    with app.app_context():
+        user = seed_playlist["user"]
+        song = seed_playlist["songs"][0]
+        playlist = create_playlist("Single Song", user.id)
+        db.session.execute(
+            playlist_entries.insert().values(
+                playlist_id=playlist.id,
+                song_id=song.id,
+                position=1,
+                added_by=user.id,
+            )
+        )
+        db.session.commit()
+        playlist_id = playlist.id
+        song_id = song.id
+
+    response = app.test_client().get(f"/playlists/{playlist_id}/songs")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["count"] == 1
+    assert [song["id"] for song in data["songs"]] == [song_id]

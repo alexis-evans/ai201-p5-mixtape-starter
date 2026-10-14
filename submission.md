@@ -455,3 +455,5 @@ This keeps the existing position order and returns the full list, including the 
 ### My side-effect check
 
 I ran all three tests in `tests/test_playlists.py` again. They checked that all five songs are returned, the songs stay in position order, and an empty playlist still returns an empty list. All three tests passed.
+
+I also wrote a regression test that tests if a playlist has one song, that the playlist is not empty. This would have caught the issue before because if the playlist sliced the last song, then the playlist would have been empty and Flask would have given an error code. This test passes.
