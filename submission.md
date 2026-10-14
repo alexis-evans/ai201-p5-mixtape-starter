@@ -129,20 +129,24 @@ Services hold the business logic. They take plain IDs and values, query and muta
 
 ### How I reproduced it
 
-I ran the following command to set the listening streak to 12 and set last listened to as a Saturday for kenji's ID, then "listen" to a song nand then view the streak. Instead of the streak being 13, the streak is reset to 1.
+I ran the following script to set the listening streak to 12 and set last listened to as a Saturday for kenji's ID, then "listen" to a song on a Sunday and then print the streak. Instead of the streak being 13, the streak is reset to 1.
 
-```Shell
-sqlite3 instance/mixtape.db "update user set listening_streak=12, last_listened_at='2026-10-17 20:00:00' where id='<user_id>';"
-curl -X POST http://127.0.0.1:5000/songs/<song_id>/listen 
-  -H 'Content-Type: application/json' -d '{"user_id":"<user_id>"}'
-curl http://127.0.0.1:5000/users/<user_id>/streak
+```Python
+from datetime import datetime, timezone
+from models import User
+from services.streak_service import update_listening_streak
+
+kenji = User(username="kenji", listening_streak=12)
+kenji.last_listened_at = datetime(2026, 10, 17, 20, tzinfo=timezone.utc)  # Saturday
+
+sunday = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
+update_listening_streak(kenji, sunday)
+
+print(kenji.listening_streak)
 ```
 
-```JSON
-{
-  "streak": 1,
-  "user_id": "f10030a3-97f1-46ea-a59b-ca30a6f44ae3"
-}
+```
+1
 ```
 
 #### Navigation Strategy
@@ -153,68 +157,90 @@ I started with `streak_service.py` > `update_listening_streak()`
 
 ### How I reproduced it
 
-First I created a listening event for 23 hours ago from Darius, a friend of Nova. Then I looked at Nova's Friends Listening Now feed. Darius is included even though the calendar day is one day ago, so he cannot be listening now.
+First I created a listening event for Darius, a friend of Nova, at 11:59PM yesterday. Then I looked at Nova's Friends Listening Now feed. Darius is included even though the calendar day is one day ago, so he cannot be listening now.
 
 ```Shell
-sqlite3 instance/mixtape.db "insert into listening_event (id, user_id, song_id, listened_at) values ('$(python3 -c 'import uuid; print(uuid.uuid4())')', '36ba19d1-c75a-4afe-b084-670c9d2db6b6', 'bb659b33-33a7-4eed-baf1-dd1d985d209b', datetime('now','-23 hours'));"
-curl http://127.0.0.1:5000/feed/e2596c66-a6df-49f0-907c-0944554ecf68/listening-now
+sqlite3 instance/mixtape.db "INSERT INTO listening_event (id, user_id, song_id, listened_at) VALUES ('$(python3 -c 'import uuid; print(uuid.uuid4())')', '<DARIUS_USER_ID>', '<SONG_ID>', datetime('now', 'start of day', '-1 second'));"
+curl 'http://127.0.0.1:5000/feed/<NOVA_USER_ID>/listening-now'
 ```
 
 ```JSON
 {
-  "count": 2,
+  "count": 3,
   "feed": [
     {
       "friend": {
-        "id": "f10030a3-97f1-46ea-a59b-ca30a6f44ae3",
-        "last_listened_at": "2026-10-13T21:53:00.316453",
-        "listening_streak": 1,
-        "username": "kenji"
+        "id": "693b4bf6-9ba8-451b-9837-174ae12f7454",
+        "last_listened_at": "2026-10-13T13:52:01.327206",
+        "listening_streak": 3,
+        "username": "darius"
       },
-      "listened_at": "2026-10-13T21:53:00.316453",
+      "listened_at": "2026-10-14T13:42:01.327206",
       "song": {
         "album": null,
         "artist": "The Wanderers",
         "genre": "indie rock",
-        "id": "bb659b33-33a7-4eed-baf1-dd1d985d209b",
+        "id": "b1dd3933-8720-4b30-8e4c-c7d70e437b42",
         "share_note": null,
-        "shared_at": "2026-10-03T21:31:22.613050",
-        "shared_by": "e2596c66-a6df-49f0-907c-0944554ecf68",
+        "shared_at": "2026-10-09T13:52:01.327206",
+        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
         "tags": [],
         "title": "Midnight Drive"
       }
     },
     {
       "friend": {
-        "id": "36ba19d1-c75a-4afe-b084-670c9d2db6b6",
-        "last_listened_at": "2026-10-07T21:31:22.613050",
-        "listening_streak": 3,
-        "username": "darius"
+        "id": "8f8e2131-b591-4b47-93b3-32f3762062ad",
+        "last_listened_at": null,
+        "listening_streak": 0,
+        "username": "simone"
       },
-      "listened_at": "2026-10-12T23:07:41",
+      "listened_at": "2026-10-14T13:37:01.327206",
       "song": {
         "album": null,
-        "artist": "The Wanderers",
-        "genre": "indie rock",
-        "id": "bb659b33-33a7-4eed-baf1-dd1d985d209b",
+        "artist": "Elara Moon",
+        "genre": "ambient",
+        "id": "f6964b1e-190e-4e67-93d7-b6b360fc709d",
         "share_note": null,
-        "shared_at": "2026-10-03T21:31:22.613050",
-        "shared_by": "e2596c66-a6df-49f0-907c-0944554ecf68",
+        "shared_at": "2026-10-09T13:52:01.327206",
+        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
         "tags": [],
-        "title": "Midnight Drive"
+        "title": "Still Waters"
+      }
+    },
+    {
+      "friend": {
+        "id": "794615a9-3e0d-4b73-93f0-bd675048eebc",
+        "last_listened_at": "2026-10-14T10:52:01.327206",
+        "listening_streak": 12,
+        "username": "kenji"
+      },
+      "listened_at": "2026-10-14T13:32:01.327206",
+      "song": {
+        "album": null,
+        "artist": "Coastal Highway",
+        "genre": "indie",
+        "id": "a9b5f9ba-6fed-4bb7-b4df-720c5a12371d",
+        "share_note": null,
+        "shared_at": "2026-10-09T13:52:01.327206",
+        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
+        "tags": [],
+        "title": "First Light"
       }
     }
   ]
 }
 ```
 
----
-
 ## Bug 3 - Duplicate Songs in Search
 
 How I reproduced it
 
 Search the database for songs with "Anthem" in them. Got back three results of the same song.
+
+```Shell
+curl 'http://127.0.0.1:5000/songs/search?q=Anthem'
+```
 
 ```JSON
 {
