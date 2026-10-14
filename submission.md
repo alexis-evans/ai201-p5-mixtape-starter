@@ -125,7 +125,7 @@ Services hold the business logic. They take plain IDs and values, query and muta
 
 # Bug fixes
 
-## Bug 1 - Sunday Streak Reset
+## Issue #1 — My listening streak keeps resetting
 
 ### How I reproduced it
 
@@ -149,9 +149,21 @@ print(kenji.listening_streak)
 1
 ```
 
-#### Navigation Strategy
+### How I found the root cause
 
-I started with `streak_service.py` > `update_listening_streak()`
+I started in `services/streak_service.py` and looked at `update_listening_streak()`. Then I checked `tests/test_streaks.py` for the expected behavior when listening on consecutive days. The specific cause was the condition `days_since_last == 1 and today.weekday() != 6`. Sunday has a weekday value of 6, so this condition prevented the streak from increasing on Sundays, even when the last listen was on Saturday.
+
+### The root cause
+
+The code only increased the streak for consecutive days if the current day was not Sunday. When someone listened on Saturday and then Sunday, the condition was false, so the code moved to the `else` branch and reset the streak to 1.
+
+### My fix
+
+I removed `and today.weekday() != 6`, leaving `days_since_last == 1`. This lets the streak increase whenever the last listen was yesterday, including when today is Sunday.
+
+### My side-effect check
+
+I ran all five tests in `tests/test_streaks.py`. They checked that a first listen starts the streak at 1, consecutive days increase it, listening twice on the same day does not increase it again, skipping a day resets it, and listening on Saturday and Sunday increases it. All five tests passed.
 
 ## Bug 2 - Dated Friends Listening Now
 
