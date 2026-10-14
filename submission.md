@@ -1,10 +1,14 @@
 # AI Usage Section
 
-**How I used AI tools**: I used AI tools to help me understand functions that I haven't seen before, and confirm lines of code that looked off or potentially buggy.
+**How I used AI tools**: I asked AI to help trace the Sunday streak reset in services/streak_service.py. It explained that today.weekday() != 6 prevented the streak from increasing on Sundays. I also used AI to trace the missing rating notification from routes/songs.py to rate_song() in services/notification_service.py, where the rating was saved without calling create_notification().
 
-**What they helped me understand**: They helped me understand python-native functions, functions related to datetimes, and how to best simulate my bugs and fixes using the command line and sqlite3.
+**What they helped me understand**: AI explained the difference between a rolling 24-hour window and the start of today, which helped me understand why yesterday’s listens appeared in Friends Listening Now. It also helped me write sqlite3 and curl commands to reproduce the bugs and check the results. For the playlist bug, it explained how songs[:-1] excludes the last song and helped add a regression test for a playlist containing only one song.
 
-**What I overrode or corrected**: I was able to use the information they gave me and apply it to the fixes that I needed to make. I could use the ids from the command they provided to execute the bug reproduction commands myself.
+**What I overrode or corrected**: Some suggested commands assumed Aaliya already had shared songs, but my database query returned none. I checked the actual data and created “Aaliya Notification Test” to reproduce the notification bug. I also checked the API output when Darius still appeared after the feed fix. His listening event was from today, even though his user’s last_listened_at was yesterday, so I adjusted the test data rather than assuming the fix had failed. I verified the fixes by running commands myself and checking the responses, alongside the automated tests.
+
+# Git Oneline
+
+![Bug fix commit history](git_log_oneline.png)
 
 # Mixtape Codebase Map
 
@@ -129,7 +133,7 @@ Services hold the business logic. They take plain IDs and values, query and muta
 
 ### How I reproduced it
 
-I ran the following script to set the listening streak to 12 and set last listened to as a Saturday for kenji's ID, then "listen" to a song on a Sunday and then print the streak. Instead of the streak being 13, the streak is reset to 1.
+I ran the following script to set the listening streak to 12 and set last listened to as a Saturday using a temporary Kenji user object, then "listen" to a song on a Sunday and then print the streak. Instead of the streak being 13, the streak is reset to 1.
 
 ```Python
 from datetime import datetime, timezone
@@ -146,6 +150,7 @@ print(kenji.listening_streak)
 ```
 
 ```
+# Kenji's streak output before the fix
 1
 ```
 
@@ -165,9 +170,9 @@ I removed `and today.weekday() != 6`, leaving `days_since_last == 1`. This lets 
 
 I ran all five tests in `tests/test_streaks.py`. They checked that a first listen starts the streak at 1, consecutive days increase it, listening twice on the same day does not increase it again, skipping a day resets it, and listening on Saturday and Sunday increases it. All five tests passed.
 
-### How I reproduced it
-
 ## Issue #2 — Friends Listening Now shows people from yesterday
+
+### How I reproduced it
 
 First I created a listening event for Darius, a friend of Nova, at 11:59PM yesterday. Then I looked at Nova's Friends Listening Now feed. Darius is included even though the calendar day is one day ago, so he cannot be listening now.
 
@@ -178,69 +183,69 @@ curl 'http://127.0.0.1:5000/feed/<NOVA_USER_ID>/listening-now'
 
 ```JSON
 {
-  "count": 3,
-  "feed": [
-    {
-      "friend": {
-        "id": "693b4bf6-9ba8-451b-9837-174ae12f7454",
-        "last_listened_at": "2026-10-13T13:52:01.327206",
-        "listening_streak": 3,
-        "username": "darius"
-      },
-      "listened_at": "2026-10-14T13:42:01.327206",
-      "song": {
-        "album": null,
-        "artist": "The Wanderers",
-        "genre": "indie rock",
-        "id": "b1dd3933-8720-4b30-8e4c-c7d70e437b42",
-        "share_note": null,
-        "shared_at": "2026-10-09T13:52:01.327206",
-        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
-        "tags": [],
-        "title": "Midnight Drive"
-      }
-    },
-    {
-      "friend": {
-        "id": "8f8e2131-b591-4b47-93b3-32f3762062ad",
-        "last_listened_at": null,
-        "listening_streak": 0,
-        "username": "simone"
-      },
-      "listened_at": "2026-10-14T13:37:01.327206",
-      "song": {
-        "album": null,
-        "artist": "Elara Moon",
-        "genre": "ambient",
-        "id": "f6964b1e-190e-4e67-93d7-b6b360fc709d",
-        "share_note": null,
-        "shared_at": "2026-10-09T13:52:01.327206",
-        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
-        "tags": [],
-        "title": "Still Waters"
-      }
-    },
-    {
-      "friend": {
-        "id": "794615a9-3e0d-4b73-93f0-bd675048eebc",
-        "last_listened_at": "2026-10-14T10:52:01.327206",
-        "listening_streak": 12,
-        "username": "kenji"
-      },
-      "listened_at": "2026-10-14T13:32:01.327206",
-      "song": {
-        "album": null,
-        "artist": "Coastal Highway",
-        "genre": "indie",
-        "id": "a9b5f9ba-6fed-4bb7-b4df-720c5a12371d",
-        "share_note": null,
-        "shared_at": "2026-10-09T13:52:01.327206",
-        "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
-        "tags": [],
-        "title": "First Light"
-      }
-    }
-  ]
+    "count": 3,
+    "feed": [
+        {
+            "friend": {
+                "id": "8f8e2131-b591-4b47-93b3-32f3762062ad",
+                "last_listened_at": null,
+                "listening_streak": 0,
+                "username": "simone"
+            },
+            "listened_at": "2026-10-14T13:37:01.327206",
+            "song": {
+                "album": null,
+                "artist": "Elara Moon",
+                "genre": "ambient",
+                "id": "f6964b1e-190e-4e67-93d7-b6b360fc709d",
+                "share_note": null,
+                "shared_at": "2026-10-09T13:52:01.327206",
+                "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
+                "tags": [],
+                "title": "Still Waters"
+            }
+        },
+        {
+            "friend": {
+                "id": "794615a9-3e0d-4b73-93f0-bd675048eebc",
+                "last_listened_at": "2026-10-14T10:52:01.327206",
+                "listening_streak": 12,
+                "username": "kenji"
+            },
+            "listened_at": "2026-10-14T13:32:01.327206",
+            "song": {
+                "album": null,
+                "artist": "Coastal Highway",
+                "genre": "indie",
+                "id": "a9b5f9ba-6fed-4bb7-b4df-720c5a12371d",
+                "share_note": null,
+                "shared_at": "2026-10-09T13:52:01.327206",
+                "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
+                "tags": [],
+                "title": "First Light"
+            }
+        },
+        {
+            "friend": {
+                "id": "693b4bf6-9ba8-451b-9837-174ae12f7454",
+                "last_listened_at": "2026-10-13T13:52:01.327206",
+                "listening_streak": 3,
+                "username": "darius"
+            },
+            "listened_at": "2026-10-13T23:59:59",
+            "song": {
+                "album": null,
+                "artist": "The Wanderers",
+                "genre": "indie rock",
+                "id": "b1dd3933-8720-4b30-8e4c-c7d70e437b42",
+                "share_note": null,
+                "shared_at": "2026-10-09T13:52:01.327206",
+                "shared_by": "b4a2e6c6-10e4-4363-b2e6-4d69f07f081a",
+                "tags": [],
+                "title": "Midnight Drive"
+            }
+        }
+    ]
 }
 ```
 
@@ -359,14 +364,14 @@ After making the fix, I searched for `Anthem` and confirm that Crown Heights Ant
 
 ### How I reproduced it
 
-I added a song as Kenji, checked Aaliya’s notifications (notification was there), then rated one of her shared songs as Kenji and checked her notifications again. The rating was saved, but no new rating notification appeared.
+First, I created "Aaliya Notification Test" directly into the database, because Aaliya had no shared songs from the seed data. I added a song as Kenji, checked Aaliya’s notifications (notification was there), then rated one of her shared songs as Kenji and checked her notifications again. The rating was saved, but no new rating notification appeared.
 
 **NOTE**: To successfully share a song and have Kenji add it to a playlist, I had to first fix a bug that did not allow songs to be added to playlists. I inserted the association row with the required `position` and `added_by` fields instead of only calling `playlist.songs.append(song)`.
 
 ```Shell
 curl -X POST 'http://127.0.0.1:5000/playlists/e5e4c6d1-e0d3-41e3-a51a-3f1ae015f5cb/songs' \
   -H 'Content-Type: application/json' \
-  -d "{\"song_id\":\"b499644b-2f2e-41fc-bffe-54636c158c57\",\"added_by\":\<KENJI_ID>"}"
+  -d '{"song_id":"<AALIYA_SHARED_SONG_ID>","added_by":"<KENJI_USER_ID>"}'
 
 curl "http://127.0.0.1:5000/users/<AALIYA_ID>/notifications"
 
@@ -456,4 +461,4 @@ This keeps the existing position order and returns the full list, including the 
 
 I ran all three tests in `tests/test_playlists.py` again. They checked that all five songs are returned, the songs stay in position order, and an empty playlist still returns an empty list. All three tests passed.
 
-I also wrote a regression test that tests if a playlist has one song, that the playlist is not empty. This would have caught the issue before because if the playlist sliced the last song, then the playlist would have been empty and Flask would have given an error code. This test passes.
+I added test_single_song_playlist_endpoint_returns_its_song as a regression test in tests/test_playlists.py. It checks that a playlist containing one song returns HTTP 200, a count of 1, and the correct song ID. With the original songs[:-1] code, the response would contain zero songs, so the count and song ID assertions would fail. This test passes with the fix.
