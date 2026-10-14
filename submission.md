@@ -2,7 +2,7 @@
 
 **How I used AI tools**: I used AI tools to help me understand functions that I haven't seen before, and confirm lines of code that looked off or potentially buggy.
 
-**What they helped me understand**: They helped me understand python-native functions, functions related to datetimes, and how to best simulate my bugs and fixes using the command line and sqlite3. 
+**What they helped me understand**: They helped me understand python-native functions, functions related to datetimes, and how to best simulate my bugs and fixes using the command line and sqlite3.
 
 **What I overrode or corrected**: I was able to use the information they gave me and apply it to the fixes that I needed to make. I could use the ids from the command they provided to execute the bug reproduction commands myself.
 
@@ -165,9 +165,9 @@ I removed `and today.weekday() != 6`, leaving `days_since_last == 1`. This lets 
 
 I ran all five tests in `tests/test_streaks.py`. They checked that a first listen starts the streak at 1, consecutive days increase it, listening twice on the same day does not increase it again, skipping a day resets it, and listening on Saturday and Sunday increases it. All five tests passed.
 
-## Bug 2 - Dated Friends Listening Now
-
 ### How I reproduced it
+
+## Issue #2 — Friends Listening Now shows people from yesterday
 
 First I created a listening event for Darius, a friend of Nova, at 11:59PM yesterday. Then I looked at Nova's Friends Listening Now feed. Darius is included even though the calendar day is one day ago, so he cannot be listening now.
 
@@ -268,7 +268,7 @@ The existing `ListeningEvent.listened_at >= cutoff` filter would then exclude ye
 
 I checked that listens from yesterday are excluded, today's listens are included, and a listen exactly at midnight is included. Each friend appears only once with their most recent song, non-friends stay excluded, and the separate activity feed still includes older events.
 
-## Bug 3 - Duplicate Songs in Search
+## Issue #3 — The same song keeps showing up twice in search
 
 ### How I reproduced it
 
@@ -341,7 +341,7 @@ The search query returns one row for each tag attached to a matching song. Becau
 
 ### My fix
 
-I would add `.unique()` before `.all()`:
+I added `.unique()` before `.all()`:
 
 ```Python
 .scalars()
@@ -354,3 +354,50 @@ This removes repeated instances of the same song from the query results. Each so
 ### My side-effect check
 
 After making the fix, I searched for `Anthem` and confirm that Crown Heights Anthem appears once with all three tags. I also checked that title and artist searches still work, searches are still case-insensitive, songs without tags still appear, and a search with no matches returns an empty list.
+
+## Issue #4 — I got notified when a friend added my song to a playlist but not when they rated it
+
+### How I reproduced it
+
+I checked Aaliya’s notifications, then rated one of her shared songs as Kenji and checked her notifications again. The rating was saved, but no new rating notification appeared.
+
+```Shell
+curl 'http://127.0.0.1:5000/users/<AALIYA_USER_ID>/notifications'
+
+curl -X POST 'http://127.0.0.1:5000/songs/<AALIYA_SHARED_SONG_ID>/rate' \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"<KENJI_USER_ID>","score":5}'
+
+curl 'http://127.0.0.1:5000/users/<AALIYA_USER_ID>/notifications'
+```
+
+```JSON
+{"count":0,"notifications":[]}
+```
+
+### How I found the root cause
+
+I started in `routes/songs.py`, where the rating route calls `rate_song()` in `services/notification_service.py`. I followed that function through the validation, saving the rating, and returning the result. Then I compared it with `add_to_playlist()` in the same file. The specific difference was that `add_to_playlist()` calls `create_notification()`, but `rate_song()` never does.
+
+### The root cause
+
+The rating function saves the rating and returns it without creating a notification for the person who shared the song. The notification is missing because no notification record is created, rather than because of a delay or a problem displaying it.
+
+### My fix
+
+I added a call to `create_notification()` after the rating is saved and before `return rating`. I also checked that the person rating the song is not the person who shared it, matching the existing playlist notification behavior.
+
+```Python
+if song.shared_by != user_id:
+    create_notification(
+        user_id=song.shared_by,
+        notification_type="song_rated",
+        body=f"{rater.username} rated your song '{song.title}' {score} stars.",
+    )
+```
+
+This sends the notification to the song’s sharer when someone else rates their song. Placing it after the save handles both new ratings and updates to existing ratings.
+
+### My side-effect check
+
+I checked that Kenji rating Aaliya’s song saved the rating and creates a `song_rated` notification for Aaliya. I also check that updating a rating still works, rating your own shared song does not notify yourself, invalid scores do not create ratings or notifications, and adding someone else’s song to a playlist still creates its existing notification.
