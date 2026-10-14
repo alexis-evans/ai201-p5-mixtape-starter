@@ -419,3 +419,39 @@ This sends the notification to the song’s sharer when someone else rates their
 ### My side-effect check
 
 I checked that Kenji rating Aaliya’s song saved the rating and creates a `song_rated` notification for Aaliya. I also check that updating a rating still works, rating your own shared song does not notify yourself, invalid scores do not create ratings or notifications, and adding someone else’s song to a playlist still creates its existing notification.
+
+## Issue #5 — The last song in a playlist never shows up
+
+### How I reproduced it
+
+I ran the playlist tests, which create a playlist with five songs. The function returned only four songs, with Track 5 missing. The test checking the song order also failed because the last song was not included.
+
+```Shell
+.venv/bin/python -m pytest tests/test_playlists.py -q
+```
+
+```text
+2 failed, 1 passed
+```
+
+### How I found the root cause
+
+I started in `routes/playlists.py`, where the `/playlists/<playlist_id>/songs` route calls `get_playlist_songs()` in `services/playlist_service.py`. I followed the query, which gets the songs in position order, then checked the return statement. The specific cause was `songs[:-1]`, which removes the last song from the list before returning it. This matched the test result where Track 5 was missing.
+
+### The root cause
+
+The query gets all the songs, but the return statement slices the list to exclude its last item. Since the songs are ordered by position, this hides the last song in the playlist. When another song is added at the next position, the previously hidden song appears and the new last song is excluded instead.
+
+### My fix
+
+I removed the `[:-1]` slice so the return statement includes every song:
+
+```Python
+return [song.to_dict() for song in songs]
+```
+
+This keeps the existing position order and returns the full list, including the last song.
+
+### My side-effect check
+
+I ran all three tests in `tests/test_playlists.py` again. They checked that all five songs are returned, the songs stay in position order, and an empty playlist still returns an empty list. All three tests passed.
