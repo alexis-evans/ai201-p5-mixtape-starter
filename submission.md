@@ -1,10 +1,10 @@
 # AI Usage Section
 
-How I used AI tools:
+**How I used AI tools**: I used AI tools to help me understand functions that I haven't seen before, and confirm lines of code that looked off or potentially buggy.
 
-What they helped me understand:
+**What they helped me understand**: They helped me understand python-native functions, functions related to datetimes, and how to best simulate my bugs and fixes using the command line and sqlite3. 
 
-What I overrode or corrected:
+**What I overrode or corrected**: I was able to use the information they gave me and apply it to the fixes that I needed to make. I could use the ids from the command they provided to execute the bug reproduction commands myself.
 
 # Mixtape Codebase Map
 
