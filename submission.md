@@ -244,8 +244,6 @@ curl 'http://127.0.0.1:5000/feed/<NOVA_USER_ID>/listening-now'
 }
 ```
 
-
-
 ### How I found the root cause
 
 I started in `routes/feed.py`, where the `/listening-now` route calls `get_friends_listening_now()` in `services/feed_service.py`. I followed that function to the cutoff calculation and the query that filters listening events. The specific cause was `datetime.now(timezone.utc) - RECENT_THRESHOLD`, with `RECENT_THRESHOLD` set to 24 hours. At 9am, this includes events back to 9am yesterday, which explains why Darius’s 11pm listen was still showing.
@@ -332,3 +330,27 @@ curl 'http://127.0.0.1:5000/songs/search?q=Anthem'
   ]
 }
 ```
+
+### How I found the root cause
+
+I started in `routes/songs.py`, where the `/search` route calls `search_songs()` in `services/search_service.py`. I followed the query and saw that it joins `Song` with `song_tags`. Crown Heights Anthem has three tags, so the join returns three rows for the same song. The specific cause was that `.scalars().all()` collects all three rows without removing duplicate songs.
+
+### The root cause
+
+The search query returns one row for each tag attached to a matching song. Because the results are not deduplicated, a song with three tags appears three times. These are copies of the same song in the response, rather than separate songs in the database.
+
+### My fix
+
+I would add `.unique()` before `.all()`:
+
+```Python
+.scalars()
+.unique()
+.all()
+```
+
+This removes repeated instances of the same song from the query results. Each song would appear once while still including all its tags.
+
+### My side-effect check
+
+After making the fix, I searched for `Anthem` and confirm that Crown Heights Anthem appears once with all three tags. I also checked that title and artist searches still work, searches are still case-insensitive, songs without tags still appear, and a search with no matches returns an empty list.

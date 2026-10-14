@@ -36,6 +36,7 @@ def search_songs(query: str) -> list[dict]:
             )
         )
         .scalars()
+        .unique()
         .all()
     )
 
