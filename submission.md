@@ -359,10 +359,16 @@ After making the fix, I searched for `Anthem` and confirm that Crown Heights Ant
 
 ### How I reproduced it
 
-I checked Aaliya’s notifications, then rated one of her shared songs as Kenji and checked her notifications again. The rating was saved, but no new rating notification appeared.
+I added a song as Kenji, checked Aaliya’s notifications (notification was there), then rated one of her shared songs as Kenji and checked her notifications again. The rating was saved, but no new rating notification appeared.
+
+**NOTE**: To successfully share a song and have Kenji add it to a playlist, I had to first fix a bug that did not allow songs to be added to playlists. I inserted the association row with the required `position` and `added_by` fields instead of only calling `playlist.songs.append(song)`.
 
 ```Shell
-curl 'http://127.0.0.1:5000/users/<AALIYA_USER_ID>/notifications'
+curl -X POST 'http://127.0.0.1:5000/playlists/e5e4c6d1-e0d3-41e3-a51a-3f1ae015f5cb/songs' \
+  -H 'Content-Type: application/json' \
+  -d "{\"song_id\":\"b499644b-2f2e-41fc-bffe-54636c158c57\",\"added_by\":\<KENJI_ID>"}"
+
+curl "http://127.0.0.1:5000/users/<AALIYA_ID>/notifications"
 
 curl -X POST 'http://127.0.0.1:5000/songs/<AALIYA_SHARED_SONG_ID>/rate' \
   -H 'Content-Type: application/json' \
@@ -372,7 +378,19 @@ curl 'http://127.0.0.1:5000/users/<AALIYA_USER_ID>/notifications'
 ```
 
 ```JSON
-{"count":0,"notifications":[]}
+{
+  "count": 1,
+  "notifications": [
+    {
+      "body": "kenji added your song 'Aaliya Notification Test' to the playlist 'Study Mode'.",
+      "created_at": "2026-10-14T15:44:20.260940",
+      "id": "c498d19a-56f4-46f7-81a5-7ba46e5c40c1",
+      "read": false,
+      "type": "song_added_to_playlist",
+      "user_id": "2ba7a408-7b8d-4a9e-8690-490fa5551ceb"
+    }
+  ]
+}
 ```
 
 ### How I found the root cause
