@@ -244,9 +244,35 @@ curl 'http://127.0.0.1:5000/feed/<NOVA_USER_ID>/listening-now'
 }
 ```
 
+
+
+### How I found the root cause
+
+I started in `routes/feed.py`, where the `/listening-now` route calls `get_friends_listening_now()` in `services/feed_service.py`. I followed that function to the cutoff calculation and the query that filters listening events. The specific cause was `datetime.now(timezone.utc) - RECENT_THRESHOLD`, with `RECENT_THRESHOLD` set to 24 hours. At 9am, this includes events back to 9am yesterday, which explains why Darius’s 11pm listen was still showing.
+
+### The root cause
+
+The code checks whether someone listened within the last 24 hours instead of checking whether they listened today. Yesterday’s events stay in the feed until they are more than 24 hours old, even after a new calendar day starts.
+
+### My fix
+
+I replaced the rolling 24-hour cutoff with midnight at the start of today:
+
+```Python
+cutoff = datetime.now(timezone.utc).replace(
+    hour=0, minute=0, second=0, microsecond=0
+)
+```
+
+The existing `ListeningEvent.listened_at >= cutoff` filter would then exclude yesterday’s events and include events from today. This uses UTC to match the app’s current timestamp convention.
+
+### My side-effect check
+
+I checked that listens from yesterday are excluded, today's listens are included, and a listen exactly at midnight is included. Each friend appears only once with their most recent song, non-friends stay excluded, and the separate activity feed still includes older events.
+
 ## Bug 3 - Duplicate Songs in Search
 
-How I reproduced it
+### How I reproduced it
 
 Search the database for songs with "Anthem" in them. Got back three results of the same song.
 
